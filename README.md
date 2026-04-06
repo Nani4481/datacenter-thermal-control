@@ -41,7 +41,7 @@ The environment models a **complex, stateful thermodynamic system** with realist
 | **Thermal Bleed** | Heat diffuses between adjacent racks via neighbor-state differential |
 | **Ambient Drift** | Natural heating/cooling based on data center ambient temperature |
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │              DATA CENTER SIMULATION GRID                │
 │                                                         │
@@ -50,10 +50,10 @@ The environment models a **complex, stateful thermodynamic system** with realist
 │   │ 🔥 85°C  │──│ 🌡️ 72°C  │──│ ✅ 60°C  │──│ ✅ 58°C  ││
 │   │  Load:90%│  │  Load:65%│  │  Load:40%│  │  Load:35%││
 │   └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘│
-│        │              │              │              │      │
-│   ┌────▼─────────────▼──────────────▼──────────────▼────┐ │
+│        │             │             │             │        │
+│   ┌────▼─────────────▼─────────────▼─────────────▼──────┐ │
 │   │          HVAC ZONE H0         HVAC ZONE H1          │ │
-│   │         Output: 78%              Output: 45%         │ │
+│   │          Output: 78%              Output: 45%        │ │
 │   └─────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -134,11 +134,11 @@ $$R = \underbrace{f(\text{PUE})}_{\text{Efficiency Bonus}} - \underbrace{0.1 \ti
 
 - [Docker](https://www.docker.com/get-started) installed and running
 - Python **3.12+**
-- OpenAI API Key **or** a local LLM via [Ollama](https://ollama.com/)
+- **Hugging Face Token (`HF_TOKEN`):** Required to run the default inference script, which accesses models via the Hugging Face router. *(Alternatively, you can use an OpenAI API key or a local LLM via [Ollama](https://ollama.com/).)*
 
 ---
 
-### 🐳 Local Development (Ollama / Mock Mode)
+### 🐳 Local Development
 
 **Step 1 — Build the container:**
 ```bash
@@ -151,31 +151,18 @@ docker run -p 7860:7860 datacenter-env
 ```
 
 **Step 3 — Run the inference agent:**
+
+Provide your Hugging Face token as an environment variable so the agent can authenticate with the LLM router.
+
+> **Note:** On Windows CMD, use `set` instead of `export`.
+
 ```bash
+export HF_TOKEN="hf_your_token_here"
 python inference.py
 ```
 
 The server will be available at `http://localhost:7860`.
 
----
-
-### ☁️ Deployment on Hugging Face Spaces
-
-This environment is designed to be hosted on **Hugging Face Spaces** using the Docker SDK.
-
-1. Go to [huggingface.co/new-space](https://huggingface.co/new-space)
-2. Select **Docker** → **Blank** template
-3. Push this repository to the Space:
-   ```bash
-   git remote add space https://huggingface.co/spaces/Nani4481/datacenter-thermal-env
-   git push space main
-   ```
-4. The Space will automatically build and deploy at:
-   ```
-   https://<user>-<space>.hf.space
-   ```
-
----
 
 ## 📊 Baseline Results
 
