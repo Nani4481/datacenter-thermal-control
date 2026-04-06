@@ -7,7 +7,9 @@ sdk: docker
 app_port: 7860
 pinned: false
 license: apache-2.0
----# 🌡️ Hyperscale AI Data Center Thermal & Power Controller
+---
+
+# 🌡️ Hyperscale AI Data Center Thermal & Power Controller
 ### *Solving the Physical Bottleneck of AI Progress*
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
