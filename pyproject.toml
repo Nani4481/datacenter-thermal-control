@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "datacenter-thermal-control"
+version = "1.0.0"
+description = "Hyperscale AI data center thermal and power optimization"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "openenv-core>=0.2.0",
+    "openai",
+    "pydantic"
+]
+
+[project.scripts]
+server = "server.app:main"
