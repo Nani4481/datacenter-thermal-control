@@ -224,16 +224,19 @@ class DataCenterEnv:
     def _grade_task(self, obs: DataCenterObservation) -> float:
         avg_pue = sum(self.episode_pues) / len(self.episode_pues) if self.episode_pues else obs.current_pue
         
+        # Changed 0.0 to 0.01
         if self.thermal_violations > 0:
-            return 0.0
+            return 0.01
             
         if self.task_name == "easy":
-            if avg_pue <= 1.25: return 1.0
+            # Changed 1.0 to 0.99
+            if avg_pue <= 1.25: return 0.99
             if avg_pue <= 1.45: return 0.5
             return 0.1
             
         elif self.task_name == "medium":
-            if obs.load_imbalance < 15.0 and avg_pue < 1.65: return 1.0
+            # Changed 1.0 to 0.99
+            if obs.load_imbalance < 15.0 and avg_pue < 1.65: return 0.99
             if obs.load_imbalance < 40.0: return 0.4
             return 0.1
             
@@ -241,9 +244,11 @@ class DataCenterEnv:
             top_load = self.racks["R0"].workload_percent + self.racks["R1"].workload_percent
             top_temp_ok = (self.racks["R0"].temperature_c < 75.0 and self.racks["R1"].temperature_c < 75.0)
             
-            if top_load < 5.0 and top_temp_ok: return 1.0
+            # Changed 1.0 to 0.99
+            if top_load < 5.0 and top_temp_ok: return 0.99
             if top_load < 10.0: return 0.7
             if top_load < 25.0: return 0.5
             return 0.1
 
-        return 0.0
+        # Changed 0.0 to 0.01
+        return 0.01
