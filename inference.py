@@ -17,34 +17,30 @@ MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
 BENCHMARK = "datacenter-thermal-control"
 
-# --- REFINED PROMPT: Stricter JSON rules and clear Emergency Pattern ---
+# --- REFINED PROMPT: Removed hardcoded answers, properly instructs the agent ---
 SYSTEM_PROMPT = textwrap.dedent("""
     You are a datacenter AI. You MUST output EXACTLY a valid JSON object and NOTHING else.
     CRITICAL: Do NOT wrap the JSON in markdown blocks. NO comments inside the JSON.
 
-    PRIORITY 1 - HVAC FAILURE & EMERGENCIES (Life or Death):
+    PRIORITY 1 - HVAC FAILURE & EMERGENCIES:
     Check the 'cooling_status' of every rack. If it says "failed":
-    - IMMEDIATELY shift all workload OUT of the failed racks to safe racks.
-    - NEVER shift workload INTO a failed rack. 
-    
-    ***EMERGENCY EXAMPLE FOR FAILED R0 AND R1***:
-    {
-      "hvac_adjustments": {"H1": 100.0},
-      "workload_shifts": [
-        {"from_rack": "R0", "to_rack": "R2", "amount_percent": 80.0},
-        {"from_rack": "R1", "to_rack": "R3", "amount_percent": 80.0}
-      ],
-      "throttles": {}
-    }
+    - IMMEDIATELY shift as much workload OUT of the failed racks to safe racks as possible.
+    - If the safe racks do not have enough capacity, you MUST use the "throttles" action on the failing racks to reduce their workload and save the hardware.
 
     PRIORITY 2 - LOAD BALANCING (If Priority 1 is safe):
     - Calculate the average workload of all OPERATIONAL racks.
     - Shift workload from racks with high % to racks with low %.
-    - ONLY shift the exact difference needed to reach the average. Do not overshoot.
-
+    
     PRIORITY 3 - PUE REDUCTION:
-    - Set BOTH H0 and H1 cooling_output_percent to 80.0 to optimize cooling if temps are safe.
+    - Optimize HVAC cooling_output_percent (e.g. 80.0) to save energy if temps are safe.
     - If an HVAC is 'failed', do NOT attempt to adjust its cooling_output_percent.
+    
+    JSON SCHEMA EXAMPLE:
+    {
+      "hvac_adjustments": {"H1": 100.0},
+      "workload_shifts": [{"from_rack": "R0", "to_rack": "R2", "amount_percent": 50.0}],
+      "throttles": {"R0": 30.0}
+    }
 """).strip()
 
 def log_start(task: str, env: str, model: str) -> None:
@@ -53,6 +49,7 @@ def log_start(task: str, env: str, model: str) -> None:
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
     error_val = error if error else "null"
     done_val = str(done).lower()
+    # Ensure reward is exactly 2 decimal places 
     print(
         f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}",
         flush=True,
@@ -60,7 +57,8 @@ def log_step(step: int, action: str, reward: float, done: bool, error: Optional[
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
+    # CRITICAL FIX: score must be exactly 2 decimal places to match Regex requirements
+    print(f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}", flush=True)
 
 def summarize_action(action_obj: DataCenterAction) -> str:
     parts = []
@@ -93,9 +91,8 @@ def get_model_action(client: OpenAI, obs_dict: dict, history: list) -> tuple[Dat
         text = completion.choices[0].message.content.strip()
     except Exception as exc:
         sys.stderr.write(f"\n[DEBUG API] {exc}\n")
-        return fallback, None
+        return fallback, str(exc)
     
-    # --- REFINED: Bulletproof JSON Extractor ---
     text = text.replace("```json", "").replace("```", "").strip()
     start = text.find('{')
     end = text.rfind('}')
@@ -113,7 +110,6 @@ def get_model_action(client: OpenAI, obs_dict: dict, history: list) -> tuple[Dat
             
         return DataCenterAction(**data), None
     except Exception as exc:
-        # Writing to stderr so YOU can see why it failed, but the automated grader ignores it!
         sys.stderr.write(f"\n[DEBUG JSON PARSE FAILED] Error: {exc}\nModel Output: {clean_text}\n")
         return fallback, None
 

@@ -112,11 +112,8 @@ class DataCenterEnv:
             self.racks["R1"].workload_percent = 80.0
             self.racks["R0"].temperature_c = 70.0
             self.racks["R1"].temperature_c = 70.0
-            # --- NEW ADDITIONS: Ensure R2 and R3 are empty so they have capacity for the shift! ---
-            self.racks["R2"].workload_percent = 0.0
-            self.racks["R3"].workload_percent = 0.0
-            self.racks["R2"].temperature_c = 40.0
-            self.racks["R3"].temperature_c = 40.0
+            # Removed the artificial R2/R3 cheat. The agent must now figure out how to 
+            # shift load into partially full racks, and throttle the rest to survive.
 
         return StepResult(
             observation=self._get_obs(),
@@ -141,7 +138,6 @@ class DataCenterEnv:
                 capacity_left = 100.0 - self.racks[shift.to_rack].workload_percent
                 actual_move = min(moveable, capacity_left)
                 
-                # Clamp with rounding to prevent floating point validation errors
                 self.racks[shift.from_rack].workload_percent = round(max(0.0, self.racks[shift.from_rack].workload_percent - actual_move), 2)
                 self.racks[shift.to_rack].workload_percent = round(min(100.0, self.racks[shift.to_rack].workload_percent + actual_move), 2)
 
@@ -150,7 +146,7 @@ class DataCenterEnv:
                 self.racks[rid].workload_percent = round(max(0.0, self.racks[rid].workload_percent - amount), 2)
 
         warnings = 0
-        step_reward = 0.0
+        step_reward = 0.5 # Start at baseline positive reward 
         new_temps = {}
 
         for rid, rack in self.racks.items():
@@ -171,7 +167,7 @@ class DataCenterEnv:
             self.racks[rid].temperature_c = temp
             if temp >= 90.0:
                 self.thermal_violations += 1
-                step_reward -= 1.0
+                step_reward -= 0.5 # Penalize, but bounds checking handles floor
             elif temp >= 80.0:
                 warnings += 1
                 step_reward -= 0.1
@@ -182,9 +178,8 @@ class DataCenterEnv:
         self.episode_pues.append(obs.current_pue)
 
         if self.task_name == "hard":
-            failed_rack_load = (self.racks["R0"].workload_percent + 
-                                self.racks["R1"].workload_percent)
-            evacuation_bonus = max(0.0, (160.0 - failed_rack_load) / 160.0) * 0.3
+            failed_rack_load = (self.racks["R0"].workload_percent + self.racks["R1"].workload_percent)
+            evacuation_bonus = max(0.0, (160.0 - failed_rack_load) / 160.0) * 0.5
             step_reward += evacuation_bonus
         else:
             pue_bonus = max(0.0, (1.8 - obs.current_pue) * 0.4) 
@@ -197,7 +192,8 @@ class DataCenterEnv:
         if done:
             info["final_grade"] = self._grade_task(obs)
 
-        step_reward = max(-1.0, min(1.0, step_reward))
+        # STRICTLY enforce (0.0, 1.0) bounds per hackathon rules
+        step_reward = round(max(0.01, min(0.99, step_reward)), 2)
 
         return StepResult(observation=obs, reward=step_reward, done=done, info=info)
 
@@ -206,7 +202,6 @@ class DataCenterEnv:
         total_cooling = sum(((h.cooling_output_percent / 100.0) ** 3) * 5.0 for h in self.hvacs.values())
         pue = (total_compute + total_cooling) / total_compute if total_compute > 0 else 1.0
         
-        # Only penalize imbalance on operational racks to avoid punishing emergency evacuations
         active_loads = [r.workload_percent for r in self.racks.values() if r.cooling_status == "operational"]
         imbalance = round(max(active_loads) - min(active_loads), 2) if active_loads else 0.0
         
@@ -224,31 +219,26 @@ class DataCenterEnv:
     def _grade_task(self, obs: DataCenterObservation) -> float:
         avg_pue = sum(self.episode_pues) / len(self.episode_pues) if self.episode_pues else obs.current_pue
         
-        # Changed 0.0 to 0.01
         if self.thermal_violations > 0:
             return 0.01
             
         if self.task_name == "easy":
-            # Changed 1.0 to 0.99
             if avg_pue <= 1.25: return 0.99
-            if avg_pue <= 1.45: return 0.5
-            return 0.1
+            if avg_pue <= 1.45: return 0.50
+            return 0.10
             
         elif self.task_name == "medium":
-            # Changed 1.0 to 0.99
             if obs.load_imbalance < 15.0 and avg_pue < 1.65: return 0.99
-            if obs.load_imbalance < 40.0: return 0.4
-            return 0.1
+            if obs.load_imbalance < 40.0: return 0.40
+            return 0.10
             
         elif self.task_name == "hard":
             top_load = self.racks["R0"].workload_percent + self.racks["R1"].workload_percent
             top_temp_ok = (self.racks["R0"].temperature_c < 75.0 and self.racks["R1"].temperature_c < 75.0)
             
-            # Changed 1.0 to 0.99
             if top_load < 5.0 and top_temp_ok: return 0.99
-            if top_load < 10.0: return 0.7
-            if top_load < 25.0: return 0.5
-            return 0.1
+            if top_load < 10.0: return 0.70
+            if top_load < 25.0: return 0.50
+            return 0.10
 
-        # Changed 0.0 to 0.01
         return 0.01
