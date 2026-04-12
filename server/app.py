@@ -14,6 +14,14 @@ app = FastAPI()
 _envs = OrderedDict()
 MAX_SESSIONS = 50 
 
+@app.get("/")
+async def root():
+    return {
+        "status": "online",
+        "message": "Hyperscale AI Data Center Thermal Controller API is running.",
+        "endpoints": ["/reset", "/step", "/state"]
+    }
+
 @app.post("/reset")
 async def reset(request: Request):
     try:
