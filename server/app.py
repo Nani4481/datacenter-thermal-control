@@ -17,9 +17,20 @@ MAX_SESSIONS = 50
 @app.get("/")
 async def root():
     return {
-        "status": "online",
-        "message": "Hyperscale AI Data Center Thermal Controller API is running.",
-        "endpoints": ["/reset", "/step", "/state"]
+        "name": "🌡️ Hyperscale AI Data Center Thermal Controller",
+        "status": "🟢 Operational",
+        "version": "1.0.0-openenv",
+        "telemetry": {
+            "active_evaluation_sessions": len(_envs),
+            "cache_capacity_limit": MAX_SESSIONS,
+            "memory_management": "LRU Cache Active"
+        },
+        "api_reference": {
+            "/reset": "[POST] Initialize or reset the simulation grid",
+            "/step":  "[POST] Apply HVAC adjustments and workload shifts",
+            "/state": "[GET]  Poll current thermodynamic telemetry"
+        },
+        "message": "Welcome to the OpenEnv 2026 Challenge. All systems nominal."
     }
 
 @app.post("/reset")
